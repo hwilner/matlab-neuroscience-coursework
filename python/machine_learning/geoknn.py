@@ -149,6 +149,47 @@ def log_euclidean_distance_matrix(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     return np.sqrt(d2)
 
 
+def airm_distance(A: np.ndarray, B: np.ndarray) -> float:
+    """Affine-invariant Riemannian distance between two SPD matrices.
+
+    Computes ``d(A, B) = ||log(A^{-1/2} B A^{-1/2})||_F = sqrt(sum(log^2
+    lam_i))`` where ``lam_i`` are the generalized eigenvalues of
+    ``B v = lam A v`` (equivalently, the eigenvalues of ``A^{-1} B``).
+    Unlike the log-Euclidean metric, AIRM is invariant under congruence
+    transformations ``C -> G C G^T`` (e.g., channel re-scaling or mixing).
+
+    Args:
+        A: SPD matrix of shape ``(d, d)``.
+        B: SPD matrix of shape ``(d, d)``.
+
+    Returns:
+        The affine-invariant geodesic distance.
+    """
+    from scipy.linalg import eigh as scipy_eigh
+
+    lam = scipy_eigh(np.asarray(B, float), np.asarray(A, float), eigvals_only=True)
+    lam = np.maximum(lam, 1e-12)
+    return float(np.sqrt(np.sum(np.log(lam) ** 2)))
+
+
+def airm_distance_matrix(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    """Pairwise affine-invariant distances between two stacks of SPD matrices.
+
+    Args:
+        A: Stack of SPD matrices, shape ``(n, d, d)``.
+        B: Stack of SPD matrices, shape ``(m, d, d)``.
+
+    Returns:
+        Distance matrix of shape ``(n, m)``.
+    """
+    A, B = np.asarray(A, float), np.asarray(B, float)
+    out = np.empty((A.shape[0], B.shape[0]))
+    for i in range(A.shape[0]):
+        for j in range(B.shape[0]):
+            out[i, j] = airm_distance(A[i], B[j])
+    return out
+
+
 def log_euclidean_mean(mats: np.ndarray) -> np.ndarray:
     """Computes the log-Euclidean (Frechet) mean of SPD matrices.
 
@@ -241,27 +282,35 @@ class GeoKNNClassifier:
 
     Windows are embedded as SPD covariance matrices (or supplied directly as
     SPD matrices). A query is classified by its k nearest neighbors under
-    the log-Euclidean metric, voting with Gaussian kernel weights
+    the chosen Riemannian metric, voting with Gaussian kernel weights
     ``w = exp(-d^2 / (2 sigma^2))`` where ``sigma`` is the median of the k
     neighbor distances of that query (self-tuned bandwidth). Voting ties are
     broken by the nearest neighbor's label.
 
     Attributes:
         n_neighbors: Number of Riemannian neighbors used for voting.
+        metric: ``"logeuclid"`` (default) or ``"airm"`` (affine-invariant).
         classes_: Sorted unique class labels seen during ``fit``.
     """
 
-    def __init__(self, n_neighbors: int = 5) -> None:
+    def __init__(self, n_neighbors: int = 5, metric: str = "logeuclid") -> None:
         """Initializes the classifier.
 
         Args:
             n_neighbors: Number of nearest SPD neighbors ``k``.
+            metric: Riemannian distance: ``"logeuclid"`` (fast, precomputed
+                matrix logarithms) or ``"airm"`` (affine-invariant; slower,
+                pairwise generalized eigenvalues).
         """
         if n_neighbors < 1:
             raise ValueError("n_neighbors must be at least 1.")
+        if metric not in ("logeuclid", "airm"):
+            raise ValueError(f"unknown metric: {metric!r}")
         self.n_neighbors = int(n_neighbors)
+        self.metric = metric
         self.classes_: np.ndarray | None = None
         self._train_logm: np.ndarray | None = None
+        self._train_spd: np.ndarray | None = None
         self._train_y: np.ndarray | None = None
 
     def _embed(self, X: np.ndarray) -> np.ndarray:
@@ -295,6 +344,7 @@ class GeoKNNClassifier:
         """
         C = self._embed(X)
         self._train_logm = logm_spd(C).reshape(len(C), -1)
+        self._train_spd = C if self.metric == "airm" else None
         self._train_y = np.asarray(y).ravel()
         self.classes_ = np.unique(self._train_y)
         return self
@@ -330,8 +380,11 @@ class GeoKNNClassifier:
         if self._train_logm is None:
             raise RuntimeError("GeoKNNClassifier must be fitted before predict.")
         C = self._embed(X)
-        Lq = logm_spd(C).reshape(len(C), -1)
-        D = self._distance_matrix_from_logm(Lq)
+        if self.metric == "airm":
+            D = airm_distance_matrix(C, self._train_spd)
+        else:
+            Lq = logm_spd(C).reshape(len(C), -1)
+            D = self._distance_matrix_from_logm(Lq)
         k = min(self.n_neighbors, D.shape[1])
         order = np.argsort(D, axis=1)
         predictions = np.empty(len(C), dtype=self._train_y.dtype)
