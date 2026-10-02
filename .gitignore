@@ -23,3 +23,8 @@ Thumbs.db
 # Course data supplied per-assignment and not redistributable
 exercise6_data.mat
 binaryClassData*.txt
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/

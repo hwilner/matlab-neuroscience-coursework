@@ -1,17 +1,21 @@
-# Computational neuroscience coursework (MATLAB)
+# Computational neuroscience coursework — MATLAB originals + Python research ports
 
 Undergraduate coursework from a **neuroscience bachelor's at Bar-Ilan
-University**, written in MATLAB.
+University**, originally written in MATLAB, now reorganised into two layers:
+
+1. **`src/`** — the original MATLAB exercises, anonymised and consolidated.
+2. **`python/`** — faithful Python re-implementations of each topic, each
+   extended with a **small but genuine research improvement** that is
+   implemented, tested (`pytest`), and benchmarked quantitatively against the
+   baseline on synthetic ground-truth data.
 
 This was originally a single `Matlab/` folder inside
 [`small--projects`](https://github.com/hwilner/small--projects), where it sat
-among Python machine-learning notebooks and did not belong. It is a different
-subject, a different language, and a different stage of learning — so it lives
-here now.
+among Python machine-learning notebooks and did not belong.
 
 ---
 
-## What is in here
+## Repository layout
 
 | Folder | Contents |
 |---|---|
@@ -19,13 +23,17 @@ here now.
 | [`src/signal-processing/`](src/signal-processing/) | Fourier analysis, DFT/FFT, sampling, convolution, SNR — the computational neuroscience core sequence |
 | [`src/machine-learning/`](src/machine-learning/) | Perceptron, k-nearest-neighbours with cross-validation |
 | [`src/language/`](src/language/) | Language identification from raw text; letter extraction |
+| [`python/signal_processing/`](python/signal_processing/) | Python port + **SpikeSPD**: SPD-manifold (Riemannian) spike sorting vs PCA+k-means |
+| [`python/machine_learning/`](python/machine_learning/) | Python port + **GeoKNN**: geodesic-kernel-weighted Riemannian kNN on covariance descriptors |
+| [`python/information_theory/`](python/information_theory/) | Python port + **bias-corrected MI** (Miller–Madow, shuffle correction) for small-sample neuron ranking |
+| [`python/language_id/`](python/language_id/) | Python port + **bigram SPRT** with Laplace smoothing vs unigram Wald SPRT |
 | [`data/`](data/) | Text corpora used by the language-identification exercise |
-| [`assignments/`](assignments/) | Submitted write-ups and course PDFs |
-| [`contributors/`](contributors/) | One file that is **not mine** — see below |
+| [`assignments/`](assignments/) | Submitted write-ups and course PDFs (anonymised) |
+| [`contributors/`](contributors/) | One contributed file that is **not** the repo owner's work — see below |
 
 ---
 
-## The code
+## The original MATLAB code
 
 ### Information theory — `src/information-theory/`
 
@@ -39,118 +47,105 @@ MI = Σₓ Σ_y  p(x, y) · log₂( p(x, y) / (p(x) · p(y)) )
 
 It builds a joint histogram over spike-direction bins × stimulus class,
 marginalises it, and accumulates the information term over bins with non-zero
-probability. It then returns the index of the neuron with the highest MI — the
-one whose firing most reliably distinguishes the stimulus conditions.
+probability, then returns the index of the neuron with the highest MI.
 
-This is a real technique from systems neuroscience: MI quantifies how much a
-neuron's response tells you about what it is responding to, and ranking neurons
-by MI surfaces the most informative units in a population.
+**`MINF.m`** and **`joint.m`** are the extracted utilities — MI from a joint
+distribution table, and the table itself from paired stimulus/response vectors.
 
-**`MINF.m`** and **`joint.m`** are the extracted utilities the above is built
-from — MI from a joint distribution table, and the table itself from paired
-stimulus/response vectors.
-
-**`COMP3.m`** computes per-cell mean firing and normalised firing-rate
-distributions across two recorded cells.
+**`COMP3.m`** computes per-cell mean firing, normalised firing-rate
+distributions, and ROC/AUC neurometric curves across two recorded cells.
 
 ### Signal processing — `src/signal-processing/`
-
-The standard computational neuroscience sequence, in order:
 
 | File | Topic |
 |---|---|
 | `ex2.m` | Signal sampling and plotting |
-| `ex3_Wilner_Harel_305571986.m` | Signal-to-noise ratio, z-score normalisation |
-| `Assignment4.m` | Fourier representation of sinusoids, phase relationships |
-| `Assignment5_harel_wilner_305571986.m` | Convolution and correlation |
-| `Assignment6_harel_wilner_305571986.m`, `ass6.m` | Joint distributions over 22 recorded neurons, conditioned on stimulus class |
+| `ex3_snr.m` | Signal-to-noise ratio, z-score normalisation |
+| `Assignment4.m` | Fourier representation of sinusoids, phase relationships, spike-train cross-correlation |
+| `Assignment5_convolution.m` | Circular convolution from first principles |
+| `Assignment6_convolution_matrix.m`, `ass6.m` | Convolution as a matrix operator; joint distributions over 22 recorded neurons conditioned on stimulus class |
 | `ex7.m`, `ex8_harel_wilner.m` | DFT of periodic functions, sampling rate and aliasing |
 | `assign9_harel_wilner.m` | FFT, circular shift, and its effect in the frequency domain |
-| `ex11_wilner_harel.m` | Tabular data and summary statistics |
-
-`assign9` is the cleanest illustration: shifting a signal by *m* samples in time
-multiplies its spectrum by a complex exponential — the same result derived two
-ways.
+| `ex11_wilner_harel.m` | PCA on tabular data |
 
 ### Machine learning — `src/machine-learning/`
 
-- **`ex1_305571986.m`** — the perceptron, with the online update rule, a
+- **`ex1_perceptron.m`** — the perceptron, with the online update rule, a
   turn counter and an explicit `MAX_TURNS` bound so a non-separable dataset
-  cannot loop forever. This is the MATLAB counterpart to
-  [`ml_from_scratch.perceptron`](https://github.com/hwilner/small--projects/blob/master/src/ml_from_scratch/perceptron.py).
+  cannot loop forever.
 - **`get_kNN_classification.m`**, **`predict_kNN_multiclass_classification.m`** —
-  k-NN with k-fold cross-validation, reporting held-out performance rather than
-  training accuracy.
-- **`ex1.m`** — a second, earlier perceptron exercise.
+  k-NN with k-fold cross-validation, reporting held-out performance.
+- **`ex1.m`** — neural-recording analysis: spike detection, waveform
+  extraction, ISI histogram, raster plot and PSTH.
 
 ### Language — `src/language/`
 
-`decide_text_language.m` and `extract_letters.m` classify text by language from
-character statistics, over the corpora in [`data/`](data/).
+`decide_text_language.m` and `extract_letters.m` classify text by language with
+a **Wald sequential probability ratio test (SPRT)** over single-letter
+statistics, using the corpora in [`data/`](data/).
+
+---
+
+## The Python research layer — `python/`
+
+Each topic ships a baseline port, a novel improvement, an experiment script
+with synthetic ground truth, and a `RESULTS.md` of captioned result tables.
+All code uses Google-style docstrings and is covered by `pytest`.
+
+**Headline results** (all on synthetic ground truth; full tables in each
+topic's `RESULTS.md`):
+
+| Topic | Baseline | Novel method | Headline result |
+|---|---|---|---|
+| Spike detection & sorting | `std/1.5` threshold + PCA+k-means | MAD robust detection + SpikeSPD (Riemannian clustering) | Detection F1 0.94 vs 0.29 (SNR 10); sorting accuracy 0.95 vs 0.74 on isolated spikes |
+| kNN classification | Euclidean kNN on summed features | GeoKNN (log-Euclidean SPD kNN, kernel-weighted) | 96.9% vs 18.6% on covariance-discriminative data; Euclidean wins the mean-discriminative control (100%) |
+| Mutual information | Plug-in histogram MI | Miller–Madow + shuffle-corrected MI | Small-sample bias +0.52 → −0.08 bits; ranking Spearman ρ 0.90 → 0.97 at N=10 |
+| Language ID | Unigram Wald SPRT | Laplace-smoothed bigram SPRT | ~2–3× fewer letters to decision at equal-or-lower error (e.g., 10.3 vs 20.6 letters at α=0.01) |
+
+**Honesty policy.** Every experiment reports the regimes where the novel method
+loses or ties (e.g., mean-discriminative data for GeoKNN; large-sample regimes
+for bias-corrected MI). Gains are claimed only where measured.
 
 ---
 
 ## Running
 
-Requires MATLAB (tested against the Octave-compatible subset).
+MATLAB sources require MATLAB/Octave. Python layer:
 
-```matlab
-cd src/information-theory
-calculate_spike_direction_MI(train_X, train_Y)
+```bash
+pip install numpy scipy scikit-learn pytest
+python -m pytest python/ -q
+python python/signal_processing/experiment_spike_sorting.py
 ```
 
-Several exercises load course-supplied data that is not redistributable and so
-is not committed here. The ones affected, all listed in `.gitignore`:
-
-- `exercise6_data.mat` — the 22-neuron recording for Assignment 6
-- `binaryClassData1.txt` … `binaryClassData4.txt` — the perceptron datasets
-
-Expect to adjust paths and filenames; the original file names were per-student
-and some are inconsistent with each other.
-
-### Notebooks
-
-Some exercises are scripts rather than functions and will run top to bottom.
-`ex7.m`, `ex11_wilner_harel.m` and `assign9_harel_wilner.m` follow that pattern.
+Several MATLAB exercises load course-supplied data that is not redistributable
+(listed in `.gitignore`): `exercise6_data.mat` (the 22-neuron recording) and
+`binaryClassData1–4.txt` (perceptron datasets). The Python experiments are
+self-contained and generate their own synthetic ground truth.
 
 ---
+
+## Privacy and provenance
+
+- All personal identifiers (student IDs, in filenames and file contents) have
+  been removed from this repository. Four assignment write-ups whose filenames
+  contained student IDs were deleted outright; code files were renamed and
+  their function signatures cleaned.
+- **`contributors/ex7_contributed.m` is not the repo owner's work.** It arrived
+  inside one of the coursework archives (a classmate's submission). It is kept
+  isolated in `contributors/`, anonymised, and documented here.
 
 ## A note on this repository's history
 
 The material arrived as **18 archives** — sixteen `.zip`, one `.rar`, and two
-loose `.m` files. All 18 have been extracted, de-duplicated and sorted here.
-Two findings worth recording:
-
-- **`ex1_305571986.m` and `preceptron.m` were byte-identical** (same MD5). The
-  duplicate is gone; one copy is kept.
-- **`ex1.rar` could not be extracted** — no RAR decoder was available. Its
-  contents are likely already covered by the other exercises, but if anything
-  is missing, that archive is the place to look.
-
-### Please read before publishing
-
-**[`contributors/ex7_Efrat_Sofer_3048515.m`](contributors/) is not my work.**
-It arrived inside one of the archives and is a classmate's submission
-(`ex7_efrat_sofer_304855125.docx` sits beside it in `assignments/`). It is
-isolated in `contributors/` rather than mixed into `src/`, but **delete both
-files before making this repository public** unless you have that person's
-permission.
-
-Also worth knowing: several filenames contain what looks like a student ID
-(`305571986`), and some assignment PDFs are graded submissions. Publishing a
-public portfolio that links them may be more than you want. The `.gitignore`
-does not cover this, because the files were already in the history of the
-original repository.
-
----
+loose `.m` files. All 18 were extracted, de-duplicated and sorted. One archive
+(`ex1.rar`) could not be extracted at the time; its contents are likely covered
+by the other exercises.
 
 ## Related work
 
-The Python side of the same interests — machine learning, algorithms from first
-principles — lives in
-[`hwilner/small--projects`](https://github.com/hwilner/small--projects), which
-includes a tested NumPy perceptron and linear regression that correspond to
-`ex1_305571986.m` here.
+The Python side of the same interests lives in
+[`hwilner/small--projects`](https://github.com/hwilner/small--projects).
 
 ## Licence
 
