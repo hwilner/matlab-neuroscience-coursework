@@ -90,6 +90,12 @@ Headline results (full tables in [`RESULTS.md`](RESULTS.md)):
 - **Honesty:** pure TDE alone is regime-sensitive (0.62 on clean SI data);
   fusion exists precisely because neither descriptor suffices everywhere.
 
+**Research note:** [`RESEARCH.md`](RESEARCH.md) — a preprint-style write-up
+of SpikeSPD v2 with the precisely-scoped novelty claim (first SPD-manifold,
+time-delay-embedding descriptor for spike sorting, per a 2026 prior-art
+search), the product-manifold math, and what remains for a
+publication-grade claim.
+
 ## Tests
 
 ```bash
