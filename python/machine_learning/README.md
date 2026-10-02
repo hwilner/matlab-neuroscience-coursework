@@ -50,8 +50,31 @@ Full captioned tables in [`RESULTS.md`](RESULTS.md). Headline findings:
   i.e. the self-tuned bandwidth makes the classifier robust to the choice of k.
 - Runtime cost is modest: ~0.21 ms/query vs ~0.13 ms for Euclidean kNN.
 
+## Part 3 (2026 retrospective) — population decoding
+
+GeoKNN was developed into a neural-decoding task styled on the coursework's
+22-neuron recording (`ass6.m`): decode one of 8 stimuli from the activity of
+22 neurons. Two regimes are simulated — *covariance-coded* (identity only in
+correlation structure; mean rates identical) and *rate-coded* (identity only
+in mean rates). GeoKNN gained a second metric: the **affine-invariant
+Riemannian metric (AIRM)** via generalized eigenvalues, congruence-invariant
+and complementary to log-Euclidean.
+
+Headline results (full table in [`RESULTS.md`](RESULTS.md), 5-fold CV):
+
+- **Covariance-coded:** GeoKNN (log-Euclidean and AIRM) and MDM decode
+  **perfectly (100%)** at every sample size, while Euclidean kNN / LDA /
+  SVM on rate vectors stay near chance (0.13–0.25; Euclidean kNN leaks a
+  little covariance structure into its rate features — reported, not hidden).
+- **Rate-coded control:** rate-based methods are perfect (100%) and the
+  geometry methods drop to chance (~0.12) — the covariance descriptor is
+  deliberately the wrong representation there.
+- AIRM ≈ log-Euclidean here (no congruence distortion in the simulation);
+  AIRM at 200 trials/stimulus is **deferred** (pairwise generalized-
+  eigenvalue cost), per the repo's cheap-tests policy.
+
 ## Tests
 
 ```bash
-python -m pytest python/machine_learning -q   # 7 tests
+python -m pytest python/machine_learning -q   # 10 tests
 ```

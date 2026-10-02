@@ -47,3 +47,23 @@ Synthetic 7-class classification of multivariate windows (T=64, d=8). Two regime
 
 In the covariance-discriminative regime (a), GeoKNN reaches 96.9% at 400/class while the original Euclidean kNN on time-summed features is at 18.6% — far below, and only weakly above the 14.3% chance level. Every class has zero mean, so the window sums contain no first-order class signal; the residual above-chance accuracy comes from second-order leakage (the distribution of a window sum still depends on the class covariance orientation). The SPD embedding captures the class-specific covariance rotations directly. In the control regime (b), the roles reverse: Euclidean kNN on summed features achieves 100.0% vs. 98.7% for GeoKNN. The summed features are a sufficient statistic for the class mean (signal-to-noise grows linearly with window length), while the SPD embedding only sees the means through the second moment mu mu^T, which is a much weaker and partially ambiguous signal — classes whose means are negatives of each other share nearly the same second moment. Euclidean distance in the right feature space is unbeatable when that space aligns with the class signal; Riemannian geometry pays off precisely when the discriminative information lives in covariance structure rather than in means. MDM tracks GeoKNN closely in regime (a), consistent with MDM being the large-k (class-mean) limit of Riemannian kNN.
 
+
+
+---
+
+## Part 3 (2026 retrospective) -- population decoding
+
+GeoKNN developed into a neural-decoding task: 22 neurons, 8 stimuli, styled on the coursework's 22-neuron recording (ass6). In the covariance-coded regime, stimulus identity lives only in the correlation structure (mean rates identical); in the rate-coded control, identity lives in mean rates. AIRM cells at 200 trials/stimulus are deferred (pairwise generalized-eigenvalue cost), per the repo's cheap-tests policy.
+
+**Table 3.** Population decoding accuracy (5-fold CV, mean +/- std over 3 seeds). Chance = 0.125.
+
+| Method | cov-coded n=20 | rate-coded n=20 | cov-coded n=50 | rate-coded n=50 | cov-coded n=200 | rate-coded n=200 |
+|---|---:|---:|---:|---:|---:|---:|
+| Euclidean kNN (rates) | 0.177 +/- 0.031 | 1.000 +/- 0.000 | 0.197 +/- 0.014 | 1.000 +/- 0.000 | 0.246 +/- 0.001 | 1.000 +/- 0.000 |
+| LDA (rates) | 0.158 +/- 0.019 | 1.000 +/- 0.000 | 0.129 +/- 0.024 | 1.000 +/- 0.000 | 0.143 +/- 0.005 | 1.000 +/- 0.000 |
+| SVM-RBF (rates) | 0.154 +/- 0.025 | 1.000 +/- 0.000 | 0.129 +/- 0.007 | 1.000 +/- 0.000 | 0.158 +/- 0.008 | 1.000 +/- 0.000 |
+| GeoKNN log-Euclidean | 1.000 +/- 0.000 | 0.123 +/- 0.013 | 1.000 +/- 0.000 | 0.123 +/- 0.008 | 1.000 +/- 0.000 | 0.126 +/- 0.005 |
+| GeoKNN AIRM | 1.000 +/- 0.000 | 0.125 +/- 0.027 | 1.000 +/- 0.000 | 0.118 +/- 0.009 | deferred | deferred |
+| MDM | 1.000 +/- 0.000 | 0.117 +/- 0.010 | 1.000 +/- 0.000 | 0.133 +/- 0.009 | 1.000 +/- 0.000 | 0.116 +/- 0.009 |
+
+Total runtime 264 s.

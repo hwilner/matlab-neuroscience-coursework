@@ -147,3 +147,42 @@ def test_karcher_mean_and_tangent_space() -> None:
     vecs = tangent_space_map(C, mean)
     assert vecs.shape == (len(C), 8 * 9 // 2)
     assert np.isfinite(vecs).all()
+
+
+def test_airm_metric_properties() -> None:
+    """AIRM is zero on the diagonal, symmetric, and congruence-invariant."""
+    from machine_learning.geoknn import airm_distance, airm_distance_matrix
+
+    rng = np.random.default_rng(0)
+    A = rng.standard_normal((5, 5))
+    A = A @ A.T + np.eye(5)
+    B = rng.standard_normal((5, 5))
+    B = B @ B.T + 2 * np.eye(5)
+    assert airm_distance(A, A) < 1e-10
+    assert abs(airm_distance(A, B) - airm_distance(B, A)) < 1e-8
+    # Congruence invariance: d(GAG^T, GBG^T) = d(A, B) for invertible G.
+    G = np.diag(np.array([1.0, 2.0, 0.5, 1.5, 3.0]))
+    assert abs(airm_distance(G @ A @ G.T, G @ B @ G.T) - airm_distance(A, B)) < 1e-6
+    D = airm_distance_matrix(np.stack([A, B]), np.stack([A, B]))
+    assert D.shape == (2, 2) and np.allclose(np.diag(D), 0.0)
+
+
+def test_geoknn_airm_matches_logeuclid_on_covariance_data() -> None:
+    """AIRM GeoKNN is competitive with log-Euclidean GeoKNN."""
+    from machine_learning.geoknn import GeoKNNClassifier as GK
+
+    X_train, y_train, X_test, y_test = _make_covariance_split(80, 30, seed=11)
+    le = GK(n_neighbors=5, metric="logeuclid").fit(X_train, y_train)
+    ai = GK(n_neighbors=5, metric="airm").fit(X_train, y_train)
+    acc_le = le.score(X_test, y_test)
+    acc_ai = ai.score(X_test, y_test)
+    assert acc_ai > 0.8
+    assert abs(acc_ai - acc_le) < 0.15
+
+
+def test_geoknn_invalid_metric_raises() -> None:
+    """Unknown metrics are rejected."""
+    from machine_learning.geoknn import GeoKNNClassifier as GK
+
+    with pytest.raises(ValueError):
+        GK(n_neighbors=3, metric="mahalanobis")
