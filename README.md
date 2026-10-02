@@ -1,13 +1,25 @@
-# Computational neuroscience coursework — MATLAB originals + Python research ports
+# Computational neuroscience coursework — a 2026 retrospective
 
 Undergraduate coursework from a **neuroscience bachelor's at Bar-Ilan
-University**, originally written in MATLAB, now reorganised into two layers:
+University**, originally written in MATLAB, revisited in 2026 as a
+retrospective in three parts:
 
-1. **`src/`** — the original MATLAB exercises, anonymised and consolidated.
-2. **`python/`** — faithful Python re-implementations of each topic, each
-   extended with a **small but genuine research improvement** that is
-   implemented, tested (`pytest`), and benchmarked quantitatively against the
-   baseline on synthetic ground-truth data.
+1. **Re-implementation** — faithful Python ports of the original MATLAB
+   exercises (`python/*/baseline`-style modules), Google-style docstrings,
+   `pytest`-covered.
+2. **Reimagined** — each topic extended with a research-style improvement
+   over the coursework method (MAD detection + SPD-manifold spike sorting,
+   Riemannian kNN, bias-corrected mutual information, bigram SPRT),
+   benchmarked quantitatively against the baseline on synthetic ground truth.
+3. **Developed** — the two ideas with a real path to novelty pushed toward
+   research grade: SpikeSPD v2 (time-delay-embedding + outer-product fusion
+   descriptors, template-adaptive realignment, overlap screening) stress-tested
+   under drift/bursting/jitter and benchmarked on SpikeInterface ground-truth
+   recordings against SpyKING CIRCUS 2; GeoKNN extended with the
+   affine-invariant metric and applied to 22-neuron population decoding.
+   The other two topics (bias-corrected MI, bigram SPRT) are declared
+   complete at Part 2 — honest assessment: they reproduce established
+   results and have no defensible path to novelty.
 
 This was originally a single `Matlab/` folder inside
 [`small--projects`](https://github.com/hwilner/small--projects), where it sat
@@ -92,15 +104,15 @@ Each topic ships a baseline port, a novel improvement, an experiment script
 with synthetic ground truth, and a `RESULTS.md` of captioned result tables.
 All code uses Google-style docstrings and is covered by `pytest`.
 
-**Headline results** (all on synthetic ground truth; full tables in each
-topic's `RESULTS.md`):
+**Headline results** (full tables in each topic's `RESULTS.md`; Parts 1–2 on
+synthetic ground truth, Part 3 adds SpikeInterface ground-truth recordings):
 
-| Topic | Baseline | Novel method | Headline result |
+| Topic | Baseline | Improvement | Headline result |
 |---|---|---|---|
-| Spike detection & sorting | `std/1.5` threshold + PCA+k-means | MAD robust detection + SpikeSPD (Riemannian clustering) | Detection F1 0.94 vs 0.29 (SNR 10); sorting accuracy 0.95 vs 0.74 on isolated spikes |
-| kNN classification | Euclidean kNN on summed features | GeoKNN (log-Euclidean SPD kNN, kernel-weighted) | 96.9% vs 18.6% on covariance-discriminative data; Euclidean wins the mean-discriminative control (100%) |
+| Spike detection & sorting | `std/1.5` threshold + PCA+k-means | MAD detection + SpikeSPD (Part 2); **SpikeSPD v2 fusion descriptors** (Part 3) | Detection F1 0.94 vs 0.29; Part 3: fusion beats v1 in 7/8 stress regimes and reaches 0.870 per-unit agreement on SpikeInterface ground truth |
+| kNN classification | Euclidean kNN on summed features | GeoKNN Riemannian kNN (Part 2); **AIRM metric + population decoding** (Part 3) | 96.9% vs 18.6% on covariance-structured data; Part 3: 100% decoding of covariance-coded stimuli where LDA/SVM/rate-kNN sit at chance — and chance where they win |
 | Mutual information | Plug-in histogram MI | Miller–Madow + shuffle-corrected MI | Small-sample bias +0.52 → −0.08 bits; ranking Spearman ρ 0.90 → 0.97 at N=10 |
-| Language ID | Unigram Wald SPRT | Laplace-smoothed bigram SPRT | ~2–3× fewer letters to decision at equal-or-lower error (e.g., 10.3 vs 20.6 letters at α=0.01) |
+| Language ID | Unigram Wald SPRT | Laplace-smoothed bigram SPRT | ~2–3× fewer letters to decision at equal-or-lower error (10.3 vs 20.6 letters at α=0.01) |
 
 **Honesty policy.** Every experiment reports the regimes where the novel method
 loses or ties (e.g., mean-discriminative data for GeoKNN; large-sample regimes
@@ -121,7 +133,8 @@ python python/signal_processing/experiment_spike_sorting.py
 Several MATLAB exercises load course-supplied data that is not redistributable
 (listed in `.gitignore`): `exercise6_data.mat` (the 22-neuron recording) and
 `binaryClassData1–4.txt` (perceptron datasets). The Python experiments are
-self-contained and generate their own synthetic ground truth.
+self-contained and generate their own synthetic ground truth. Part 3's
+benchmark additionally requires `pip install 'spikeinterface[spykingcircus2]'`.
 
 ---
 
