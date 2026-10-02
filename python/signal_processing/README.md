@@ -57,8 +57,41 @@ Full captioned tables in [`RESULTS.md`](RESULTS.md). Headline findings:
   regimes. PCA+kmeans wins in the noise-dominated SNR 3 / no-overlap regime,
   where rank-1 covariance descriptors are mostly noise — reported, not hidden.
 
+## Part 3 (2026 retrospective) — developed SpikeSPD v2
+
+Development over the Part-2 prototype, targeting the failure modes it
+exposed (`spike_spd_v2.py`):
+
+1. **Time-delay-embedding (TDE) descriptors** — Hankel-matrix covariance
+   `C = H Hᵀ/n + εI` replaces the rank-1 outer product: full-rank, encodes
+   temporal autocorrelation, averages noise over delay frames.
+2. **Fusion descriptor** — block-diagonal `blkdiag(C_tde, C_outer)`;
+   log-Euclidean distance on the product manifold adds the blocks'
+   distances in quadrature, uniting shape (TDE) and amplitude (outer
+   product) information. This is the default.
+3. **Zero-phase low-pass denoising** and **template-adaptive
+   realignment** (cross-correlation to running cluster templates).
+4. **Overlap screening** — spikes whose single-template residual is an
+   in-cluster outlier *and* whose residual is cut ≥2.5× by a greedy
+   two-template fit are flagged as overlaps.
+
+Headline results (full tables in [`RESULTS.md`](RESULTS.md)):
+
+- **Stress test** (drift + bursting + jitter, Track A): fusion beats the
+  v1 descriptor in 7 of 8 SNR×overlap×jitter regimes (e.g., 0.87 vs 0.79
+  accuracy at SNR 10, no overlaps; 0.74 vs 0.69 with overlaps + jitter),
+  with overlap screening adding a further small gain.
+- **SpikeInterface ground-truth benchmark** (Track B, 3 seeds): fusion
+  **0.870 ± 0.009** mean per-unit agreement vs v1 0.845 ± 0.039 — and
+  both far above SpyKING CIRCUS 2 (0.438), which struggles on
+  single-channel recordings (caveat: SpikeSPD is given the true unit
+  count, SC2 estimates it; the comparison is informative, not a claim of
+  superiority over modern multichannel sorters).
+- **Honesty:** pure TDE alone is regime-sensitive (0.62 on clean SI data);
+  fusion exists precisely because neither descriptor suffices everywhere.
+
 ## Tests
 
 ```bash
-python -m pytest python/signal_processing -q   # 20 tests
+python -m pytest python/signal_processing -q   # 31 tests
 ```

@@ -43,3 +43,33 @@ Honest accounting of regimes where the classic PCA(3) + k-means baseline matches
 - **Statistical ties (means within 0.01):** none.
 
 The pattern is consistent with theory. (i) At SNR=3 the detected waveforms are noise-dominated, so SpikeSPD's rank-1 descriptor `x x^T + eps I` is mostly a noise outer product with little stable orienting information, and PCA+kmeans matches or edges out SpikeSPD. (ii) With a 15% overlap rate at high SNR, roughly a quarter of the extracted waveforms are superpositions of two templates that neither method can attribute to a single unit; both sit near the resulting accuracy ceiling and the verdict becomes metric-dependent (here PCA+kmeans on accuracy but SpikeSPD on ARI). SpikeSPD's clearest advantage is on isolated spikes at moderate-to-high SNR (SNR 5-10, overlap 0), where the second-order structure of the covariance descriptor separates the three templates far more reliably than a fixed 3-component linear projection (e.g. SNR=10: ~0.95 vs ~0.74 mean accuracy). Finally, PCA+kmeans is much cheaper (SPD descriptors are L x L matrices), so for clean, well-separated units the baseline remains the pragmatic choice.
+
+
+---
+
+## Part 3 (2026 retrospective) -- developed SpikeSPD v2
+
+Development over the Part-2 prototype: time-delay-embedding (TDE) covariance descriptors replacing rank-1 outer products, zero-phase low-pass denoising, template-adaptive realignment, and overlap screening. Track A stress-tests on synthetic recordings with amplitude drift, a bursting unit, and extraction jitter; Track B benchmarks on SpikeInterface ground-truth recordings against SpyKING CIRCUS 2.
+
+**Table 4.** Track A: clustering accuracy (Hungarian best match) under amplitude drift and bursting, on identical MAD detections. `fusion` = block-diagonal TDE + outer-product descriptor; `fusion screened` excludes spikes flagged as overlaps. Mean +/- std over seeds.
+
+| SNR | Overlap | Jitter | v1 acc | TDE acc | fusion acc | fusion screened acc | v1 ARI | TDE ARI | fusion ARI |
+|----:|--------:|-------:|-------:|--------:|-----------:|--------------------:|-------:|--------:|-----------:|
+| 5 | 0 | 0 | 0.688 +/- 0.033 | 0.730 +/- 0.095 | 0.697 +/- 0.038 | 0.699 +/- 0.039 | 0.473 +/- 0.033 | 0.551 +/- 0.081 | 0.499 +/- 0.037 |
+| 5 | 0 | 2 | 0.713 +/- 0.044 | 0.705 +/- 0.076 | 0.707 +/- 0.031 | 0.708 +/- 0.031 | 0.506 +/- 0.035 | 0.532 +/- 0.064 | 0.518 +/- 0.045 |
+| 5 | 0.15 | 0 | 0.657 +/- 0.036 | 0.706 +/- 0.014 | 0.697 +/- 0.017 | 0.698 +/- 0.017 | 0.358 +/- 0.048 | 0.464 +/- 0.019 | 0.428 +/- 0.042 |
+| 5 | 0.15 | 2 | 0.678 +/- 0.041 | 0.695 +/- 0.027 | 0.702 +/- 0.030 | 0.703 +/- 0.029 | 0.373 +/- 0.062 | 0.427 +/- 0.033 | 0.431 +/- 0.026 |
+| 10 | 0 | 0 | 0.792 +/- 0.124 | 0.768 +/- 0.094 | 0.859 +/- 0.118 | 0.864 +/- 0.118 | 0.594 +/- 0.193 | 0.605 +/- 0.098 | 0.734 +/- 0.178 |
+| 10 | 0 | 2 | 0.816 +/- 0.147 | 0.748 +/- 0.088 | 0.867 +/- 0.128 | 0.872 +/- 0.131 | 0.642 +/- 0.209 | 0.584 +/- 0.078 | 0.754 +/- 0.192 |
+| 10 | 0.15 | 0 | 0.710 +/- 0.075 | 0.734 +/- 0.030 | 0.750 +/- 0.051 | 0.756 +/- 0.057 | 0.439 +/- 0.096 | 0.519 +/- 0.029 | 0.508 +/- 0.058 |
+| 10 | 0.15 | 2 | 0.686 +/- 0.019 | 0.730 +/- 0.027 | 0.732 +/- 0.037 | 0.739 +/- 0.031 | 0.397 +/- 0.038 | 0.526 +/- 0.027 | 0.488 +/- 0.048 |
+
+**Table 5.** Track B: SpikeInterface ground-truth benchmark (single channel, 4 units, 30 s, 300-6000 Hz band-pass). Hungarian-matched per-unit agreement with ground truth (coincidence +/-0.4 ms). Caveat: SpikeSPD variants are given the true unit count; SpyKING CIRCUS 2 estimates it.
+
+| Seed | SpikeSPD v1 | SpikeSPD v2 (TDE) | SpikeSPD v2 (fusion) | SpyKING CIRCUS 2 |
+|-----:|------------:|------------------:|---------------------:|-----------------:|
+| 0 | 0.874 | 0.623 | 0.867 | 0.211 |
+| 1 | 0.800 | 0.887 | 0.880 | 0.472 |
+| 2 | 0.862 | 0.881 | 0.864 | 0.629 |
+
+Mean: v1 0.845 +/- 0.039, TDE 0.797 +/- 0.151, fusion 0.870 +/- 0.009, SC2 0.438 +/- 0.211. Total runtime 413 s.
