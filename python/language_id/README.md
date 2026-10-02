@@ -50,3 +50,12 @@ Full captioned tables in [`RESULTS.md`](RESULTS.md). Headline findings:
 ```bash
 python -m pytest python/language_id -q   # 11 tests
 ```
+
+## Part 3 status — complete at Part 2
+
+Retrospective assessment (2026): the bigram SPRT is a direct combination of
+two classics (n-gram language models + Wald's SPRT), and Wald-Wolfowitz
+optimality does not even strictly apply to Markov observations. The measured
+2-3x reduction in letters-to-decision at equal-or-lower error is the
+deliverable. No defensible path to novelty -- intentionally not developed
+further.

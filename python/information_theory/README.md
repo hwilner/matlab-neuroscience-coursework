@@ -57,3 +57,13 @@ Full captioned tables in [`RESULTS.md`](RESULTS.md). Headline findings:
 ```bash
 python -m pytest python/information_theory -q   # 10 tests
 ```
+
+## Part 3 status — complete at Part 2
+
+Retrospective assessment (2026): the bias corrections implemented here are
+the *established* standard (Miller-Madow 1955; Panzeri-Treves 1996; shuffle
+correction as recommended by Panzeri et al. 2007). The package's
+contribution is the quantified benchmark itself -- including the honest
+negative result that Miller-Madow is worse than plug-in for synergy signs
+at tiny N. There is no defensible path to methodological novelty, so this
+topic is intentionally not developed further.
