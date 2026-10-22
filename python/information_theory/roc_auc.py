@@ -10,12 +10,33 @@ apart from a single trial.
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Callable, Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 __all__ = ["rate_distributions", "roc_curve", "auc", "roc_auc_score"]
+
+
+def _resolve_trapezoid() -> Callable[..., np.floating]:
+    """Resolves the trapezoidal-integration callable across NumPy versions.
+
+    ``numpy.trapz`` was renamed to ``numpy.trapezoid`` in NumPy 2.0, so the
+    new spelling is unavailable on NumPy 1.x installations, which the
+    coursework's lab machines still run. The lookup is done once at import
+    time and prefers the new name, so NumPy 2.x never hits the deprecated
+    ``trapz`` alias.
+
+    Returns:
+        The callable integrating ``y`` against ``x``.
+    """
+    trapezoid = getattr(np, "trapezoid", None)
+    if trapezoid is None:  # NumPy < 2.0
+        trapezoid = np.trapz
+    return trapezoid
+
+
+_TRAPEZOID = _resolve_trapezoid()
 
 
 def rate_distributions(
@@ -106,7 +127,7 @@ def auc(fpr: ArrayLike, tpr: ArrayLike) -> float:
     tpr = np.asarray(tpr, dtype=float).ravel()
     if fpr.shape != tpr.shape:
         raise ValueError("fpr and tpr must have the same length.")
-    return float(abs(np.trapezoid(tpr, fpr)))
+    return float(abs(_TRAPEZOID(tpr, fpr)))
 
 
 def roc_auc_score(condition1: ArrayLike, condition2: ArrayLike) -> float:

@@ -166,3 +166,18 @@ def test_roc_curve_endpoints_and_auc_consistency():
     assert fpr[-1] == pytest.approx(1.0) and tpr[-1] == pytest.approx(1.0)
     assert auc(fpr, tpr) == pytest.approx(roc_auc_score(cond1, cond2))
     assert 0.5 < auc(fpr, tpr) < 1.0  # separated but overlapping
+
+
+def test_auc_integration_resolves_on_every_numpy_version():
+    """The trapezoidal integrator exists on both NumPy 1.x and 2.x.
+
+    ``numpy.trapz`` was renamed to ``numpy.trapezoid`` in NumPy 2.0, so the
+    AUC code must not hard-code either spelling.
+    """
+    from ..roc_auc import _TRAPEZOID
+
+    assert callable(_TRAPEZOID)
+    fpr = np.array([0.0, 0.5, 1.0])
+    tpr = np.array([0.0, 0.75, 1.0])
+    assert float(_TRAPEZOID(tpr, fpr)) == pytest.approx(0.625)
+    assert auc(fpr, tpr) == pytest.approx(0.625)

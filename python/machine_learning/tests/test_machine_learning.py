@@ -1,5 +1,8 @@
 """Tests for the machine_learning package (perceptron, kNN, GeoKNN)."""
 
+import pathlib
+import sys
+
 import numpy as np
 import pytest
 
@@ -15,6 +18,12 @@ from machine_learning.geoknn import (
 )
 from machine_learning.knn import KNNClassifier, cross_validate
 from machine_learning.perceptron import Perceptron
+
+# The Part-3 experiment script imports its siblings by their bare module
+# names, so the package directory itself has to be importable.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from experiment_geoknn_decoding import cross_validate_geoknn  # noqa: E402
 
 
 def _make_covariance_split(
@@ -73,6 +82,52 @@ def test_knn_perfect_on_well_separated_blobs() -> None:
     mean_acc, fold_accs = cross_validate(X[perm], y[perm], k=3, n_folds=5)
     assert fold_accs.shape == (5,)
     assert mean_acc == pytest.approx(1.0)
+
+
+def test_cross_validate_rejects_more_folds_than_samples() -> None:
+    """More folds than samples would leave folds empty, so it is rejected.
+
+    Scoring an empty validation fold yields NaN, which used to propagate
+    silently into the returned mean accuracy.
+    """
+    rng = np.random.default_rng(3)
+    X = rng.normal(size=(5, 3))
+    y = np.array([0, 1, 0, 1, 0])
+    with pytest.raises(ValueError, match="cannot exceed the number of samples"):
+        cross_validate(X, y, k=1, n_folds=7)
+
+
+def test_cross_validate_rejects_non_positive_fold_count() -> None:
+    """A fold count below one is meaningless and is rejected."""
+    rng = np.random.default_rng(4)
+    X = rng.normal(size=(10, 3))
+    y = np.array([0, 1] * 5)
+    with pytest.raises(ValueError, match="n_folds must be at least 1"):
+        cross_validate(X, y, k=1, n_folds=0)
+
+
+def test_cross_validate_rejects_empty_data() -> None:
+    """Cross-validation needs at least one sample to split."""
+    with pytest.raises(ValueError, match="at least one sample"):
+        cross_validate(np.empty((0, 3)), np.empty(0), k=1, n_folds=2)
+
+
+def test_cross_validate_rejects_fold_leaving_no_training_samples() -> None:
+    """A single sample cannot be both the validation and the training set."""
+    with pytest.raises(ValueError, match="no training samples"):
+        cross_validate(np.array([[1.0, 2.0]]), np.array([0]), k=1, n_folds=1)
+
+
+def test_cross_validate_never_returns_nan() -> None:
+    """Every fold is non-empty, so the accuracies are all finite."""
+    rng = np.random.default_rng(5)
+    for n in range(2, 12):
+        X = rng.normal(size=(n, 3))
+        y = np.array([0, 1] * n)[:n]
+        mean_acc, fold_accs = cross_validate(X, y, k=1, n_folds=n)
+        assert fold_accs.shape == (n,)
+        assert np.all(np.isfinite(fold_accs))
+        assert np.isfinite(mean_acc)
 
 
 def test_spd_embed_is_spd() -> None:
@@ -186,3 +241,63 @@ def test_geoknn_invalid_metric_raises() -> None:
 
     with pytest.raises(ValueError):
         GK(n_neighbors=3, metric="mahalanobis")
+
+
+# ----------------------------------------------------------------------
+# Part-3 cross-validation helper
+# ----------------------------------------------------------------------
+
+def _covariance_split_with_trailing_class(
+    n_class0: int, n_class1: int, t: int = 8, d: int = 2, seed: int = 21,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Windows whose two classes differ in covariance, not in mean.
+
+    The class-1 windows are the trailing samples, so a fold split that
+    silently drops the remainder never validates them.
+
+    Args:
+        n_class0: Number of class-0 (low-variance) windows.
+        n_class1: Number of class-1 (high-variance) windows.
+        t: Time bins per window.
+        d: Channels per window.
+        seed: Random seed.
+
+    Returns:
+        Tuple ``(X, y)`` with windows ``(n, t, d)`` and labels ``(n,)``.
+    """
+    rng = np.random.default_rng(seed)
+    x0 = rng.standard_normal((n_class0, t, d)) * 0.1
+    x1 = rng.standard_normal((n_class1, t, d)) * 5.0
+    X = np.concatenate([x0, x1])
+    y = np.concatenate([np.zeros(n_class0, dtype=int), np.ones(n_class1, dtype=int)])
+    return X, y
+
+
+def test_geoknn_cross_validate_validates_every_sample() -> None:
+    """The fold split must cover all samples, including the trailing ones.
+
+    A ``n // n_folds`` stride dropped the last ``n % n_folds`` samples from
+    validation, so a class that lived only in that remainder was never
+    scored at all.
+    """
+    X, y = _covariance_split_with_trailing_class(6, 1)
+    accuracy = cross_validate_geoknn(X, y, "mdm", n_folds=3)
+    # 7 samples in 3 folds of 3, 2 and 2 samples. The trailing class-1
+    # sample is validated and misclassified, so the fold accuracies are
+    # 1.0, 1.0 and 0.5 and their unweighted mean is 5/6. Dropping the
+    # remainder would have scored 1.0.
+    assert accuracy == pytest.approx(5.0 / 6.0)
+    assert accuracy < 1.0
+
+
+def test_geoknn_cross_validate_rejects_more_folds_than_samples() -> None:
+    """An empty validation fold would score as NaN, so it is rejected."""
+    X, y = _covariance_split_with_trailing_class(3, 1)
+    with pytest.raises(ValueError, match="cannot exceed the number of samples"):
+        cross_validate_geoknn(X, y, "mdm", n_folds=9)
+
+
+def test_geoknn_cross_validate_rejects_empty_data() -> None:
+    """Cross-validation needs at least one sample to split."""
+    with pytest.raises(ValueError, match="at least one sample"):
+        cross_validate_geoknn(np.empty((0, 8, 2)), np.empty(0), "mdm", n_folds=2)
