@@ -136,6 +136,12 @@ Several MATLAB exercises load course-supplied data that is not redistributable
 self-contained and generate their own synthetic ground truth. Part 3's
 benchmark additionally requires `pip install 'spikeinterface[spykingcircus2]'`.
 
+The Python layer is tested against both NumPy 1.x and NumPy 2.x — the 2.0
+release renamed `numpy.trapz` to `numpy.trapezoid`, and the lab machines the
+coursework was written on still run NumPy 1.x. GitHub Actions runs the
+`pytest` suite on that matrix for every push and pull request
+(`.github/workflows/ci.yml`).
+
 ---
 
 ## Privacy and provenance

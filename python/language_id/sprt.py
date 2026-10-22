@@ -97,7 +97,9 @@ def wald_thresholds(alpha: float, beta: float) -> Tuple[float, float]:
     return float(A), float(B)
 
 
-def expected_samples(p: np.ndarray, q: np.ndarray) -> Dict[str, float]:
+def expected_samples(
+    p: np.ndarray, q: np.ndarray, alpha: float = 0.05, beta: float = 0.05
+) -> Dict[str, float]:
     """Estimate expected SPRT sample sizes via Kullback-Leibler divergence.
 
     Under hypothesis ``p`` the accumulated log-likelihood ratio grows on
@@ -111,20 +113,58 @@ def expected_samples(p: np.ndarray, q: np.ndarray) -> Dict[str, float]:
     Args:
         p: Probability vector for hypothesis 1, shape ``(26,)``.
         q: Probability vector for hypothesis 0, shape ``(26,)``.
+        alpha: Nominal type-I error probability defining the Wald thresholds.
+        beta: Nominal type-II error probability defining the Wald thresholds.
 
     Returns:
         Dictionary with keys ``"dkl_p_q"``, ``"dkl_q_p"`` (base-10 KL
         divergences) and ``"n_under_p"``, ``"n_under_q"`` (expected letters
-        to decision under each hypothesis, for ``alpha = beta`` thresholds).
+        to decision under each hypothesis).
+
+    Raises:
+        ValueError: If the models are not strictly positive vectors of equal
+            length, or if ``alpha`` / ``beta`` are outside ``(0, 1)``.
     """
-    p = np.asarray(p, dtype=np.float64)
-    q = np.asarray(q, dtype=np.float64)
+    p = np.asarray(p, dtype=np.float64).ravel()
+    q = np.asarray(q, dtype=np.float64).ravel()
+    for name, m in (("p", p), ("q", q)):
+        if m.size == 0:
+            raise ValueError(f"{name} must not be empty.")
+        # A zero entry makes log10(m) = -inf and the divergence NaN, which
+        # would silently poison the sample-size estimates below.
+        if np.any(m <= 0):
+            raise ValueError(
+                f"{name} must be strictly positive; use smoothing when training."
+            )
+    if p.shape != q.shape:
+        raise ValueError("p and q must have the same length.")
     dkl_p_q = float(np.sum(p * (np.log10(p) - np.log10(q))))
     dkl_q_p = float(np.sum(q * (np.log10(q) - np.log10(p))))
+    threshold_a, threshold_b = wald_thresholds(alpha, beta)
     return {
         "dkl_p_q": dkl_p_q,
         "dkl_q_p": dkl_q_p,
+        "n_under_p": _threshold_over_divergence(threshold_a, dkl_p_q),
+        "n_under_q": _threshold_over_divergence(abs(threshold_b), dkl_q_p),
     }
+
+
+def _threshold_over_divergence(threshold: float, divergence: float) -> float:
+    """Divides a Wald threshold by a KL divergence to get a sample size.
+
+    Args:
+        threshold: Wald threshold magnitude (non-negative).
+        divergence: Base-10 KL divergence between the two models.
+
+    Returns:
+        The expected number of observations to decision, or ``inf`` when the
+        divergence is zero. Identical models carry no information about each
+        other, so the SPRT never terminates; the MATLAB original returns
+        ``Inf`` for the same case.
+    """
+    if divergence <= 0.0:
+        return float("inf")
+    return threshold / divergence
 
 
 class UnigramSPRT:
@@ -223,12 +263,13 @@ class UnigramSPRT:
             and the KL-based expected sample sizes ``n_under_1`` /
             ``n_under_0`` for crossing the respective Wald threshold.
         """
-        est = expected_samples(self.model1, self.model0)
+        est = expected_samples(self.model1, self.model0,
+                               alpha=self.alpha, beta=self.beta)
         return {
             "dkl_1_0": est["dkl_p_q"],
             "dkl_0_1": est["dkl_q_p"],
-            "n_under_1": self.threshold_a / est["dkl_p_q"],
-            "n_under_0": abs(self.threshold_b) / est["dkl_q_p"],
+            "n_under_1": est["n_under_p"],
+            "n_under_0": est["n_under_q"],
         }
 
 

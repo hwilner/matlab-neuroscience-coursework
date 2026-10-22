@@ -207,16 +207,41 @@ def cross_validate(
             ``(n_samples, d)``.
         y: Labels of shape ``(n_samples,)``.
         k: Number of neighbors.
-        n_folds: Number of cross-validation folds (7 in the coursework).
+        n_folds: Number of cross-validation folds (7 in the coursework). Must
+            not exceed the number of samples, otherwise some folds would be
+            empty.
         summed_features: If True, use time-summed window features.
 
     Returns:
         Tuple ``(mean_accuracy, fold_accuracies)`` where
-        ``fold_accuracies`` has shape ``(n_folds,)``.
+        ``fold_accuracies`` has shape ``(n_folds,)``. Both are finite.
+
+    Raises:
+        ValueError: If ``n_folds`` or ``k`` is out of range, if there are no
+            samples, if ``n_folds`` exceeds the number of samples, or if a
+            fold would leave the training set empty.
     """
     n = len(y)
+    if n == 0:
+        raise ValueError("cross_validate needs at least one sample.")
+    if n_folds < 1:
+        raise ValueError("n_folds must be at least 1.")
+    if n_folds > n:
+        # The split is into contiguous segments, so a fold count above the
+        # sample count leaves folds empty. Scoring an empty fold yields
+        # NaN, which would silently propagate into the mean accuracy.
+        raise ValueError(
+            f"n_folds ({n_folds}) cannot exceed the number of samples ({n})."
+        )
     fold_sizes = np.full(n_folds, n // n_folds)
     fold_sizes[: n % n_folds] += 1
+    if n - int(fold_sizes.max()) < 1:
+        # The largest fold is held out entirely, so the remaining samples
+        # are the whole training set; it must not be empty.
+        raise ValueError(
+            f"n_folds ({n_folds}) leaves no training samples for a fold; "
+            f"use fewer folds than samples."
+        )
     boundaries = np.concatenate([[0], np.cumsum(fold_sizes)])
     fold_accuracies = np.empty(n_folds)
     for i in range(n_folds):
@@ -228,4 +253,6 @@ def cross_validate(
         fold_accuracies[i] = clf.score(
             np.asarray(X)[lo:hi], np.asarray(y)[lo:hi]
         )
+    if not np.all(np.isfinite(fold_accuracies)):
+        raise RuntimeError("cross_validate produced a non-finite fold accuracy.")
     return float(fold_accuracies.mean()), fold_accuracies

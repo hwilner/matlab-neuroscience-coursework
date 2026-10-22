@@ -129,16 +129,37 @@ def cross_validate_geoknn(
         y: Labels ``(n,)``.
         metric: ``"logeuclid"``, ``"airm"``, or ``"mdm"``.
         k: Number of neighbors (ignored for MDM).
-        n_folds: Number of contiguous folds.
+        n_folds: Number of contiguous folds. Must not exceed the number of
+            samples.
 
     Returns:
         Mean accuracy across folds.
+
+    Raises:
+        ValueError: If there are no samples, if ``n_folds`` is out of range,
+            or if ``n_folds`` exceeds the number of samples.
     """
     n = len(y)
-    seg = n // n_folds
+    if n == 0:
+        raise ValueError("cross_validate_geoknn needs at least one sample.")
+    if n_folds < 1:
+        raise ValueError("n_folds must be at least 1.")
+    if n_folds > n:
+        # An empty validation fold would score as NaN and silently poison
+        # the mean accuracy.
+        raise ValueError(
+            f"n_folds ({n_folds}) cannot exceed the number of samples ({n})."
+        )
+    # Split into contiguous folds that cover every sample: a plain
+    # ``n // n_folds`` stride would silently drop the trailing
+    # ``n % n_folds`` samples from validation.
+    fold_sizes = np.full(n_folds, n // n_folds)
+    fold_sizes[: n % n_folds] += 1
+    boundaries = np.concatenate([[0], np.cumsum(fold_sizes)])
     scores = []
     for f in range(n_folds):
-        te = np.arange(f * seg, (f + 1) * seg)
+        lo, hi = boundaries[f], boundaries[f + 1]
+        te = np.arange(lo, hi)
         tr = np.setdiff1d(np.arange(n), te)
         if metric == "mdm":
             clf = MDMClassifier()

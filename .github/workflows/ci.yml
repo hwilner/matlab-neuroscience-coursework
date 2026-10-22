@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    name: pytest (Python ${{ matrix.python-version }}, NumPy ${{ matrix.numpy }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # NumPy 1.x is still the version shipped on the lab machines the
+        # coursework was written on, and it renamed ``trapz`` to
+        # ``trapezoid`` only in 2.0, so both majors are exercised. NumPy
+        # 1.x has no CPython 3.13 wheels, hence the narrower 3.13 row.
+        include:
+          - python-version: "3.11"
+            numpy: "<2"
+          - python-version: "3.11"
+            numpy: ">=2"
+          - python-version: "3.12"
+            numpy: "<2"
+          - python-version: "3.12"
+            numpy: ">=2"
+          - python-version: "3.13"
+            numpy: ">=2"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy${{ matrix.numpy }}" scipy scikit-learn pytest
+
+      - name: Byte-compile every module
+        # The experiment scripts are not imported by the test suite, so this
+        # is what catches a syntax error in them.
+        run: python -m compileall -q python
+
+      - name: Run the test suite
+        run: python -m pytest python/ -q

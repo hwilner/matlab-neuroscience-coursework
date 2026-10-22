@@ -96,6 +96,74 @@ def test_expected_samples_uses_kl_divergence() -> None:
     assert est["dkl_p_q"] > 0 and est["dkl_q_p"] > 0
 
 
+def test_expected_samples_reports_every_documented_key() -> None:
+    """expected_samples returns all four keys its docstring promises.
+
+    The function's docstring documents ``n_under_p`` / ``n_under_q`` next to
+    the two KL divergences, so every caller following the documented
+    contract must be able to read them.
+    """
+    p = train_unigram_model(_load("English.txt")[:20_000])
+    q = train_unigram_model(_load("French.txt")[:20_000])
+    est = expected_samples(p, q)
+    assert set(est) == {"dkl_p_q", "dkl_q_p", "n_under_p", "n_under_q"}
+    threshold_a, threshold_b = wald_thresholds(0.05, 0.05)
+    assert est["n_under_p"] == pytest.approx(threshold_a / est["dkl_p_q"])
+    assert est["n_under_q"] == pytest.approx(abs(threshold_b) / est["dkl_q_p"])
+
+
+def test_expected_samples_reproduces_results_table_1() -> None:
+    """The published Table 1 of language_id/RESULTS.md is reproducible.
+
+    Table 1 is generated from the first 80% of each corpus by
+    ``experiment_language_id.py``; this pins the KL-based expected sample
+    sizes to the numbers the results document reports.
+    """
+    def _train_prefix(name: str) -> str:
+        """Return the first 80% of a corpus, matching the experiment split."""
+        return _load(name)[: int(len(_load(name)) * 0.8)]
+
+    p = train_unigram_model(_train_prefix("English.txt"))
+    q = train_unigram_model(_train_prefix("French.txt"))
+    est = expected_samples(p, q, alpha=0.05, beta=0.05)
+    assert est["dkl_p_q"] == pytest.approx(0.1287, abs=5e-5)
+    assert est["dkl_q_p"] == pytest.approx(0.0670, abs=5e-5)
+    assert est["n_under_p"] == pytest.approx(9.9, abs=0.05)
+    assert est["n_under_q"] == pytest.approx(19.1, abs=0.05)
+
+
+def test_expected_samples_rejects_non_positive_models() -> None:
+    """A zero probability would make the divergence NaN, so it is rejected."""
+    p = np.full(N_LETTERS, 1.0 / N_LETTERS)
+    q = p.copy()
+    q[0] = 0.0
+    with pytest.raises(ValueError):
+        expected_samples(p, q)
+
+
+def test_expected_samples_is_infinite_for_identical_models() -> None:
+    """Identical models never separate, so the expected size is infinite."""
+    p = np.full(N_LETTERS, 1.0 / N_LETTERS)
+    est = expected_samples(p, p)
+    assert est["dkl_p_q"] == pytest.approx(0.0)
+    assert est["n_under_p"] == float("inf")
+    assert est["n_under_q"] == float("inf")
+
+
+def test_unigram_sprt_expected_samples_uses_instance_thresholds() -> None:
+    """UnigramSPRT.expected_samples uses the thresholds of its own instance."""
+    p = train_unigram_model(_load("English.txt")[:20_000])
+    q = train_unigram_model(_load("French.txt")[:20_000])
+    sprt = UnigramSPRT(p, q, alpha=0.01, beta=0.01)
+    est = sprt.expected_samples()
+    threshold_a, threshold_b = wald_thresholds(0.01, 0.01)
+    assert est["n_under_1"] == pytest.approx(threshold_a / est["dkl_1_0"])
+    assert est["n_under_0"] == pytest.approx(abs(threshold_b) / est["dkl_0_1"])
+    # The default-alpha estimate must not be reused for an alpha=0.01 SPRT.
+    default = UnigramSPRT(p, q).expected_samples()
+    assert est["n_under_1"] != pytest.approx(default["n_under_1"])
+
+
 # ----------------------------------------------------------------------
 # Bigram model
 # ----------------------------------------------------------------------
